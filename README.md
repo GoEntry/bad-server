@@ -13,3 +13,4 @@ docker compose up -d
 6. Админка находится по адресу http://localhost/admin/
 
 Ссылка на репозиторий: https://github.com/GoEntry/bad-server
+Юданов Глеб, 5 когорта
