@@ -1,6 +1,7 @@
 import { Request, Express } from 'express'
 import multer, { FileFilterCallback } from 'multer'
-import { join } from 'path'
+import path, { join } from 'path'
+import crypto from 'crypto'
 
 type DestinationCallback = (error: Error | null, destination: string) => void
 type FileNameCallback = (error: Error | null, filename: string) => void
@@ -11,15 +12,9 @@ const storage = multer.diskStorage({
         _file: Express.Multer.File,
         cb: DestinationCallback
     ) => {
-        cb(
-            null,
-            join(
-                __dirname,
-                process.env.UPLOAD_PATH_TEMP
-                    ? `../public/${process.env.UPLOAD_PATH_TEMP}`
-                    : '../public'
-            )
-        )
+        // Используем правильный путь к папке temp
+        const uploadPath = join(__dirname, '../public/temp')
+        cb(null, uploadPath)
     },
 
     filename: (
@@ -27,7 +22,10 @@ const storage = multer.diskStorage({
         file: Express.Multer.File,
         cb: FileNameCallback
     ) => {
-        cb(null, file.originalname)
+        // Безопасное именование файлов для предотвращения path traversal
+        const ext = path.extname(file.originalname)
+        const filename = crypto.randomUUID() + ext
+        cb(null, filename)
     },
 })
 
@@ -51,4 +49,13 @@ const fileFilter = (
     return cb(null, true)
 }
 
-export default multer({ storage, fileFilter })
+// Ограничения размера файлов: минимум 2kb, максимум 10mb
+const limits = {
+    fileSize: 10 * 1024 * 1024, // 10MB максимум
+}
+
+export default multer({ 
+    storage, 
+    fileFilter, 
+    limits
+})

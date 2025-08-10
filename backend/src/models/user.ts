@@ -1,10 +1,9 @@
 /* eslint-disable no-param-reassign */
+import bcrypt from 'bcryptjs'
 import crypto from 'crypto'
 import jwt from 'jsonwebtoken'
 import mongoose, { Document, HydratedDocument, Model, Types } from 'mongoose'
 import validator from 'validator'
-import md5 from 'md5'
-
 import { ACCESS_TOKEN, REFRESH_TOKEN } from '../config'
 import UnauthorizedError from '../errors/unauthorized-error'
 
@@ -105,33 +104,28 @@ const userSchema = new mongoose.Schema<IUser, IUserModel, IUserMethods>(
         // Возможно удаление пароля в контроллере создания, т.к. select: false не работает в случае создания сущности https://mongoosejs.com/docs/api/document.html#Document.prototype.toJSON()
         toJSON: {
             virtuals: true,
-            transform: (_doc, ret) => {
-                delete ret.tokens
-                delete ret.password
-                delete ret._id
-                delete ret.roles
+            transform: (_doc, ret: any) => {
+                if ('tokens' in ret) delete ret.tokens
+                if ('password' in ret) delete ret.password
+                if ('_id' in ret) delete ret._id
+                if ('roles' in ret) delete ret.roles
                 return ret
             },
         },
     }
 )
 
-// Возможно добавление хеша в контроллере регистрации
-userSchema.pre('save', async function hashingPassword(next) {
-    try {
-        if (this.isModified('password')) {
-            this.password = md5(this.password)
-        }
-        next()
-    } catch (error) {
-        next(error as Error)
-    }
+// пользователь создается — хеш пароль
+userSchema.pre('save', async function (next) {
+    if (!this.isModified('password')) return next()
+    this.password = await bcrypt.hash(this.password, 12)
+    return next()
 })
 
 // Можно лучше: централизованное создание accessToken и  refresh токена
 
 userSchema.methods.generateAccessToken = function generateAccessToken() {
-    const user = this
+    const user = this as any
     // Создание accessToken токена возможно в контроллере авторизации
     return jwt.sign(
         {
@@ -141,14 +135,14 @@ userSchema.methods.generateAccessToken = function generateAccessToken() {
         ACCESS_TOKEN.secret,
         {
             expiresIn: ACCESS_TOKEN.expiry,
-            subject: user.id.toString(),
+            subject: user._id.toString(),
         }
     )
 }
 
 userSchema.methods.generateRefreshToken =
     async function generateRefreshToken() {
-        const user = this
+        const user = this as any
         // Создание refresh токена возможно в контроллере авторизации/регистрации
         const refreshToken = jwt.sign(
             {
@@ -157,7 +151,7 @@ userSchema.methods.generateRefreshToken =
             REFRESH_TOKEN.secret,
             {
                 expiresIn: REFRESH_TOKEN.expiry,
-                subject: user.id.toString(),
+                subject: user._id.toString(),
             }
         )
 
@@ -181,7 +175,7 @@ userSchema.statics.findUserByCredentials = async function findByCredentials(
     const user = await this.findOne({ email })
         .select('+password')
         .orFail(() => new UnauthorizedError('Неправильные почта или пароль'))
-    const passwdMatch = md5(password) === user.password
+    const passwdMatch = await bcrypt.compare(password, user.password)
     if (!passwdMatch) {
         return Promise.reject(
             new UnauthorizedError('Неправильные почта или пароль')
