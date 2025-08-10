@@ -1,11 +1,24 @@
 import { NextFunction, Request, Response } from 'express'
 import xss from 'xss'
 
+// Настройка XSS фильтра - более строгая конфигурация
+const xssOptions = {
+    whiteList: {}, // Запрещаем все HTML теги
+    stripIgnoreTag: true, // Удаляем неразрешенные теги
+    stripIgnoreTagBody: ['script'], // Удаляем содержимое script тегов
+    onIgnoreTagAttr: function (tag: string, name: string, value: string) {
+        // Блокируем все атрибуты событий (onload, onclick и т.д.)
+        if (name.startsWith('on')) {
+            return '';
+        }
+    }
+}
+
 // Санитизация от XSS атак
 export const sanitizeXSS = (req: Request, _res: Response, next: NextFunction) => {
     const sanitizeObj = (obj: any): any => {
         if (typeof obj === 'string') {
-            return xss(obj)
+            return xss(obj, xssOptions)
         }
         if (typeof obj === 'object' && obj !== null) {
             const result = { ...obj }

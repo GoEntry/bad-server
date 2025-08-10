@@ -59,15 +59,15 @@ app.use(cors({
     credentials: true
 }))
 
-// Добавляем санитизацию от XSS и NoSQL инъекций
-app.use(sanitizeXSS)
-app.use(sanitizeNoSQL)
-
 app.use(serveStatic(path.join(__dirname, 'public')))
 
 // Ограничение размера body для защиты от переполнения
 app.use(urlencoded({ extended: true, limit: '1mb' }))
 app.use(json({ limit: '1mb' }))
+
+// Добавляем санитизацию от XSS и NoSQL инъекций ПОСЛЕ парсинга body
+app.use(sanitizeXSS)
+app.use(sanitizeNoSQL)
 
 app.options('*', cors({ origin: 'http://localhost:5173', credentials: true }))
 
